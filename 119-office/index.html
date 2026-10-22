@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>119 사무실 공간 재배치(총 8석: 제1안 vs 제2안) 3D 비교 뷰어 & 보고서</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Pretendard', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #0f141d; color: #f8fafc; }
+        #canvas-container { width: 100%; height: 100%; position: relative; touch-action: none; }
+
+        /* 상단 제1안 vs 제2안 실시간 스위처 바 */
+        #top-switcher {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30;
+            background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(12px);
+            padding: 8px 12px; border-radius: 14px; border: 1px solid rgba(56, 189, 248, 0.35);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 8px;
+            white-space: nowrap; max-width: 96vw; overflow-x: auto;
+        }
+        .plan-btn {
+            background: rgba(30, 41, 59, 0.9); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15);
+            padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; gap: 2px;
+        }
+        .plan-btn span.sub-desc { font-size: 10px; font-weight: 500; color: #94a3b8; }
+        .plan-btn:hover { background: #334155; color: #fff; }
+        .plan-btn.active-p1 {
+            background: linear-gradient(135deg, #0284c7, #1d4ed8); color: #fff; border-color: #38bdf8;
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+        }
+        .plan-btn.active-p1 span.sub-desc { color: #e0f2fe; }
+        .plan-btn.active-p2 {
+            background: linear-gradient(135deg, #059669, #047857); color: #fff; border-color: #34d399;
+            box-shadow: 0 0 16px rgba(52, 211, 153, 0.45);
+        }
+        .plan-btn.active-p2 span.sub-desc { color: #d1fae5; }
+
+        .doc-open-btn {
+            background: #f59e0b; color: #0f172a; border: none; padding: 10px 14px;
+            border-radius: 10px; font-size: 13px; font-weight: 800; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35); transition: all 0.2s;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .doc-open-btn:hover { background: #fbbf24; transform: translateY(-1px); }
+
+        /* 좌측 상단 현재 안 요약 배너 */
+        #plan-summary-card {
+            position: absolute; top: 82px; left: 14px; z-index: 20;
+            background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px);
+            padding: 14px 16px; border-radius: 12px; border-left: 4px solid #38bdf8;
+            border-top: 1px solid rgba(255,255,255,0.12); border-right: 1px solid rgba(255,255,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.45); width: 340px; max-width: calc(100vw - 28px);
+            pointer-events: auto; transition: all 0.25s ease;
+        }
+        #plan-summary-card h2 { font-size: 15px; font-weight: 800; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+        #plan-summary-card ul { list-style: none; font-size: 12px; color: #e2e8f0; line-height: 1.55; }
+        #plan-summary-card ul li { margin-bottom: 4px; padding-left: 12px; position: relative; }
+        #plan-summary-card ul li::before { content: "•"; position: absolute; left: 0; color: #38bdf8; font-weight: bold; }
+        .spec-tag { display: inline-block; background: rgba(255,255,255,0.1); padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #fde68a; font-weight: 700; margin-top: 4px; }
+
+        /* 우측 컨트롤 패널 */
+        #ui-panel {
+            position: absolute; top: 82px; right: 14px; z-index: 20;
+            background: rgba(15, 23, 42, 0.90); backdrop-filter: blur(10px);
+            padding: 13px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.45); width: 225px;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        .panel-section { margin-bottom: 11px; }
+        .panel-section:last-child { margin-bottom: 0; }
+        .panel-title { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .btn-full { grid-column: span 2; }
+        button.ui-btn {
+            background: rgba(30, 41, 59, 0.9); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.12);
+            padding: 7px 9px; border-radius: 7px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+            transition: all 0.15s ease; display: flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        button.ui-btn:hover { background: #334155; border-color: #38bdf8; color: #fff; }
+        button.ui-btn.active { background: #0284c7; border-color: #38bdf8; color: #fff; }
+
+        /* 하단 범례 바 */
+        #bottom-bar {
+            position: absolute; bottom: 12px; left: 14px; right: 14px; z-index: 20;
+            display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none;
+            flex-wrap: wrap; gap: 8px;
+        }
+        .legend-box {
+            background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(8px);
+            padding: 9px 13px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14);
+            display: flex; flex-wrap: wrap; gap: 11px; font-size: 11.5px; color: #cbd5e1; pointer-events: auto;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+        .help-box {
+            background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+            padding: 7px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+            font-size: 11px; color: #94a3b8; pointer-events: auto;
+        }
+
+        /* 3D HTML 라벨 */
+        #labels-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 10; }
+        .zone-label {
+            position: absolute; transform: translate(-50%, -100%);
+            background: rgba(15, 23, 42, 0.90); color: #f8fafc; padding: 4px 9px;
+            border-radius: 6px; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+            border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 10px rgba(0,0,0,0.45);
+            pointer-events: none;
+        }
+        .zone-label .sub { display: block; font-size: 9.5px; font-weight: 500; color: #cbd5e1; margin-top: 1px; text-align: center; }
+        .zone-label.comm-fixed { background: rgba(30, 58, 138, 0.92); border-color: #60a5fa; }
+        .zone-label.comm-seat { background: rgba(13, 148, 136, 0.95); border-color: #5eead4; color: #f0fdfa; }
+        .zone-label.leader { background: rgba(146, 64, 14, 0.94); border-color: #fbbf24; color: #fef3c7; }
+        .zone-label.member { background: rgba(30, 64, 175, 0.92); border-color: #93c5fd; }
+        .zone-label.meet { background: rgba(20, 83, 45, 0.92); border-color: #4ade80; }
+        .zone-label.pantry { background: rgba(88, 28, 135, 0.90); border-color: #c084fc; }
+        .zone-label.aisle { background: rgba(8, 145, 178, 0.88); border-color: #67e8f9; font-size: 10.5px; padding: 3px 7px; }
+
+        /* 보고서 및 직원 투표 양식 모달 창 */
+        #proposal-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(6px); z-index: 100;
+            justify-content: center; align-items: center; padding: 16px;
+        }
+        #proposal-modal.open { display: flex; }
+        .modal-card {
+            background: #1e293b; color: #f8fafc; width: 100%; max-width: 860px; max-height: 90vh;
+            border-radius: 16px; border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7); display: flex; flex-direction: column; overflow: hidden;
+            user-select: text; -webkit-user-select: text;
+        }
+        .modal-header {
+            padding: 16px 22px; background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.12);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h3 { font-size: 17px; font-weight: 800; color: #fbbf24; }
+        .modal-close { background: transparent; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; font-weight: bold; }
+        .modal-body { padding: 20px 22px; overflow-y: auto; line-height: 1.6; font-size: 13.5px; }
+        .modal-body h4 { font-size: 15px; color: #38bdf8; margin: 16px 0 8px 0; border-left: 3px solid #38bdf8; padding-left: 8px; }
+        .modal-body h4:first-child { margin-top: 0; }
+        .comp-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px 0; font-size: 12.5px; }
+        .comp-table th, .comp-table td { border: 1px solid rgba(255,255,255,0.18); padding: 9px 11px; text-align: left; vertical-align: top; }
+        .comp-table th { background: #0f172a; color: #e2e8f0; font-weight: 700; }
+        .comp-table th.p1-col { background: rgba(2, 132, 199, 0.35); color: #7dd3fc; }
+        .comp-table th.p2-col { background: rgba(5, 150, 105, 0.35); color: #6ee7b7; }
+        .vote-box {
+            background: rgba(15, 23, 42, 0.75); border: 1px dashed #fbbf24; border-radius: 10px;
+            padding: 14px; margin-top: 12px;
+        }
+        .modal-footer {
+            padding: 12px 22px; background: #0f172a; border-top: 1px solid rgba(255,255,255,0.12);
+            display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+        }
+        .action-btn {
+            background: #0284c7; color: #fff; border: none; padding: 9px 16px; border-radius: 8px;
+            font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .action-btn.copy { background: #10b981; }
+
+        /* 모바일 반응형 */
+        #mobile-toggle { display: none; }
+        @media (max-width: 768px) {
+            #top-switcher { top: 8px; padding: 6px 8px; gap: 5px; }
+            .plan-btn { padding: 7px 10px; font-size: 11.5px; }
+            .plan-btn span.sub-desc { display: none; }
+            .doc-open-btn { padding: 7px 10px; font-size: 11.5px; }
+            #plan-summary-card { top: 56px; left: 10px; width: calc(100vw - 110px); padding: 10px 12px; }
+            #plan-summary-card h2 { font-size: 13px; }
+            #plan-summary-card ul { font-size: 11px; }
+            #mobile-toggle {
+                display: flex; position: absolute; top: 56px; right: 10px; z-index: 30;
+                background: #334155; color: #fff; border: 1px solid #64748b;
+                padding: 8px 11px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+            }
+            #ui-panel { top: 96px; right: 10px; width: 200px; }
+            #ui-panel.collapsed { transform: translateX(230px); opacity: 0; pointer-events: none; }
+            .help-box { display: none; }
+            .legend-box { font-size: 10px; gap: 7px; padding: 7px 9px; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="labels-container"></div>
+
+    <!-- 상단 제1안 vs 제2안 실시간 스위처 & 제안표 보기 -->
+    <div id="top-switcher">
+        <button id="btn-plan1" class="plan-btn active-p1" onclick="switchPlan(1)">
+            <span>🔵 제1안: 중앙 마주보기 · 지휘 강화형 (총 8석)</span>
+            <span class="sub-desc">상단 팀장 3석 일렬 + 중앙 마주보기 4인석(동서 방향) + 프라이버시 보호</span>
+        </button>
+        <button id="btn-plan2" class="plan-btn" onclick="switchPlan(2)">
+            <span>🟢 제2안: 중앙 출동로 · 좌우 분산 마주보기형 (총 8석)</span>
+            <span class="sub-desc">정중앙 260cm 직선 출동대로 + 좌·우 직원 2+2 마주보기 (모니터 완벽 은폐)</span>
+        </button>
+        <button class="doc-open-btn" onclick="openProposalModal()">📋 상관 보고 · 직원 투표 문서</button>
+    </div>
+
+    <!-- 좌측 상단 현재 선택된 안 요약 카드 -->
+    <div id="plan-summary-card">
+        <h2 id="summary-title">🔵 [제1안] 중앙 마주보기 · 지휘 강화형 (총 8석)</h2>
+        <ul id="summary-list">
+            <li><b>통신 고정 1자리(270×90cm)</b>: 북측 고정 통신시설 바로 앞에 상시 고정</li>
+            <li><b>팀장 독립 3자리(190×125cm × 3석)</b>: 상단에 나란히 독립 배치 (전방 지휘)</li>
+            <li><b>직원 4자리(140×120cm × 4석)</b>: 좌우 마주보기(동↔서)형 4인 클러스터 배치</li>
+            <li><b>프라이버시 완벽 보호</b>: 출입구(남) 진입 시 측면 파티션만 보여 모니터가 전혀 노출되지 않음</li>
+        </ul>
+        <span class="spec-tag">총 8석 (통신1 + 팀장3 + 직원4) · 실측 1,050×1,285cm</span>
+    </div>
+
+    <!-- 모바일 옵션 토글 -->
+    <button id="mobile-toggle" onclick="toggleMobilePanel()">⚙️ 시점·옵션</button>
+
+    <!-- 우측 시점 및 옵션 컨트롤 패널 -->
+    <div id="ui-panel">
+        <div class="panel-section">
+            <div class="panel-title">🎥 카메라 시점 전환</div>
+            <div class="btn-grid">
+                <button class="ui-btn active" onclick="setCameraView('iso', this)">📐 전체 조감도</button>
+                <button class="ui-btn" onclick="setCameraView('top', this)">🗺️ 2D 평면도</button>
+                <button class="ui-btn btn-full" style="background:#059669; border-color:#34d399;" onclick="setCameraView('entrance_eye', this)">🚪 출입구 진입 (프라이버시 확인)</button>
+                <button class="ui-btn btn-full" onclick="setCameraView('comm_leader', this)">⭐ 통신석 · 팀장 3석 시점</button>
+                <button class="ui-btn" onclick="setCameraView('south_rooms', this)">📺 회의실·탕비실</button>
+            </div>
+        </div>
+        <div class="panel-section">
+            <div class="panel-title">🛠️ 표시 옵션</div>
+            <div class="btn-grid">
+                <button id="btn-labels" class="ui-btn active btn-full" onclick="toggleLabels()">🏷️ 실측 치수·이름표 ON/OFF</button>
+                <button id="btn-aisle" class="ui-btn active btn-full" onclick="toggleAisles()">🚶 광폭 출동·통행로 표시</button>
+                <button id="btn-walls" class="ui-btn btn-full" onclick="toggleWalls()">🧱 외벽 반투명 / 숨김</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 범례 바 -->
+    <div id="bottom-bar">
+        <div class="legend-box">
+            <div class="legend-item"><span class="dot" style="background:#14b8a6;"></span>통신 고정 1석 (270×90cm)</div>
+            <div class="legend-item"><span class="dot" style="background:#f59e0b;"></span>팀장 독립 3석 (190×125cm × 3)</div>
+            <div class="legend-item"><span class="dot" style="background:#3b82f6;"></span>직원 4석 (140×120cm × 4)</div>
+            <div class="legend-item"><span class="dot" style="background:#4ade80;"></span>소회의실 (우하단)</div>
+            <div class="legend-item"><span class="dot" style="background:#c084fc;"></span>탕비실 (좌하단)</div>
+        </div>
+        <div class="help-box">
+            🖱️ 좌클릭(한손가락): 회전 | 우클릭(두손가락): 이동 | 휠(핀치): 확대·축소
+        </div>
+    </div>
+
+    <!-- 상관 보고 및 직원 투표 안내문 모달 -->
+    <div id="proposal-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>📋 사무실 공간 재배치(총 8석: 제1안 vs 제2안) 검토 보고 및 직원 의견 조회</h3>
+                <button class="modal-close" onclick="closeProposalModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <h4>1. 추진 배경 및 실측 가구 기준 (총 8좌석)</h4>
+                <p>효율적인 지휘통제 여건을 마련하고 출동 동선의 병목 현상을 해소하며, 특히 남측 주 출입구(계단) 진입 시 직원들의 모니터 화면 및 개인 업무 프라이버시가 노출되는 문제를 완벽히 해결하기 위해 <b>총 8석(통신 1석 + 팀장 3석 + 직원 4석)</b>을 대수정한 2개 배치안을 수립하였습니다.</p>
+                <ul style="margin: 8px 0 12px 18px; color:#cbd5e1;">
+                    <li><b>통신 고정 자리 (1석)</b>: <b>가로 270cm × 세로 90cm</b> — 북측 고정 통신시설(255×130cm) 바로 앞에 상시 고정 배치</li>
+                    <li><b>팀장 독립 자리 (3석)</b>: 1석당 <b>가로 190cm × 세로 125cm</b> — 1·2·3팀장 개별 독립 큐비클 (높이 128cm 파티션)</li>
+                    <li><b>직원 자리 (4석)</b>: 1석당 <b>가로 140cm × 세로 120cm</b> — <b>좌-우 마주보기형 배치 (동서방향 90도 회전, 입구에서 모니터 비가림)</b></li>
+                    <li><b>부대 공간</b>: 우측 하단 <b>소회의실(6인용 + 이동식 TV)</b> / 좌측 하단 <b>탕비실(냉장고·정수기·다과탁자)</b> / 양벽 방화복 보관함</li>
+                </ul>
+
+                <h4>2. 제1안 vs 제2안 상세 비교표 (상관 보고 및 직원 공람용)</h4>
+                <table class="comp-table">
+                    <thead>
+                        <tr>
+                            <th style="width:18%;">구분</th>
+                            <th class="p1-col" style="width:41%;">🔵 제1안: 중앙 마주보기 · 지휘 강화형</th>
+                            <th class="p2-col" style="width:41%;">🟢 제2안: 중앙 출동로 · 좌우 분산 마주보기형</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><b>배치 핵심 구조</b></td>
+                            <td>• <b>상단</b>: 1·2·3팀장석(190×125) 3석 일렬 독립 배치<br>• <b>중앙</b>: 직원 4자리(2×2 묶음, 280×240cm)를 그대로 두되, <b>좌우(동서)로 서로 마주보게 회전</b> 배치</td>
+                            <td>• <b>정중앙 개방</b>: 남측 계단 입구~북측 통신석까지 정중앙을 <b>폭 260cm 직선 대로</b>로 완전 개방<br>• <b>좌·우 마주보기 분산</b>: 좌측(1·2팀장 + 동서 마주보기 2석) / 우측(3팀장 + 동서 마주보기 2석) 배치</td>
+                        </tr>
+                        <tr>
+                            <td><b>프라이버시 (모니터 가림)</b></td>
+                            <td>• 남측 계단 진입 시 <b>모니터 뒷면과 측면 파티션(H 128cm)만 정면으로 보여 화면 및 착석 사각지대 완벽 확보</b><br>• 복도를 지나는 사람으로부터 업무 집중 및 프라이버시 침해 최소화</td>
+                            <td>• 통로 측면의 파티션 벽면만 노출되도록 90도 전면 회전하여, <b>중앙 고속 출동로를 지나는 보행자로부터 완벽한 시각적 차폐 실현</b></td>
+                        </tr>
+                        <tr>
+                            <td><b>통행 및 출동 동선</b></td>
+                            <td>• 중앙 4인석 양옆(좌·우)에 <b>폭 310cm의 초대형 여유 복도</b> 확보<br>• 탕비실 및 소회의실 진입 공간이 매우 넓고 쾌적함</td>
+                            <td>• <b>출입구에서 통신실까지 장애물 없는 최단 거리 일직선 동선</b> 확보<br>• 긴급 출동 시 책상을 우회할 필요 없이 직진 이동 가능</td>
+                        </tr>
+                        <tr>
+                            <td><b>지휘 통솔 및 협업</b></td>
+                            <td>• 3개 팀장이 나란히 위치해 팀장 간 소통이 원활하며, 전방의 직원 4명을 한눈에 조망 가능<br>• 직원 4명이 중앙에 모여 마주보며 상호 업무 협조 편리</td>
+                            <td>• 직원 4석을 <b>좌측 2석(140×240cm) + 우측 2석(140×240cm)</b>으로 나누어 마주보게 배치함으로써 개인별 집중도와 팀별 독립성 극대화</td>
+                        </tr>
+                        <tr>
+                            <td><b>종합 평가 (기대효과)</b></td>
+                            <td><b>"모니터 불빛과 화면 노출을 완전히 차단하고, 팀장 3인의 일체감 있는 지휘 환경을 선호할 때 적합"</b></td>
+                            <td><b>"시야가 트인 중앙 통로와 마주보기식 분산 배치를 통해 신속한 기동성과 프라이버시를 조화시킬 때 적합"</b></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4>3. 직원 선호도 투표 및 의견 수렴 양식</h4>
+                <div class="vote-box">
+                    <p><b>[사무실 공간 재배치(총 8석) 선호도 투표 및 의견서]</b></p>
+                    <p>• 소속 / 성명 : ( &nbsp;&nbsp;&nbsp; )팀 / 성명 : ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p>
+                    <p>• 선호 배치안 선택 : [ &nbsp; ] <b>제1안 (중앙 마주보기형)</b> &nbsp;&nbsp;/&nbsp;&nbsp; [ &nbsp; ] <b>제2안 (중앙 출동로 · 좌우 분산 마주보기형)</b></p>
+                    <p>• 선택 사유 및 추가 건의사항 (회의실·탕비실·집기 배치 등) : </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn copy" onclick="copyVoteTemplate()">📋 보고·투표 안내문 전체 복사하기</button>
+                <button class="action-btn" onclick="closeProposalModal()">3D 뷰어로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. 실측 공간 및 가구 규격 상수 (1단위 = 1cm)
+        // =========================================================================
+        const ROOM_W = 1050; // 가로 1050cm
+        const ROOM_D = 1285; // 세로 1285cm
+        const WALL_H = 290;  // 천장고 290cm
+
+        // 첨부 도면(7071.jpg) 실측 규격 (총 8자리: 통신1 + 팀장3 + 직원4)
+        const COMM_FIXED_W = 255, COMM_FIXED_D = 130; // 북측 고정 통신시설 (255 x 130cm)
+        const COMM_SEAT_W  = 270, COMM_SEAT_D  = 90;  // 통신 고정 자리 1석 (270 x 90cm)
+        const LEADER_W     = 190, LEADER_D     = 125; // 각 팀장 자리 3석 (190 x 125cm)
+        const STAFF_W      = 140, STAFF_D      = 120; // 직원 자리 4석 (1석당 140 x 120cm)
+
+        const container = document.getElementById('canvas-container');
+        const labelsContainer = document.getElementById('labels-container');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f141d);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 10, 8000);
+        camera.position.set(0, 1300, 1360);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.07;
+        controls.maxPolarAngle = Math.PI / 2 - 0.03;
+        controls.minDistance = 200;
+        controls.maxDistance = 3400;
+        controls.target.set(0, 40, 20);
+
+        // 조명
+        scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+        const dirLight = new THREE.DirectionalLight(0xfffcf5, 0.65);
+        dirLight.position.set(450, 1200, 550);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 100;
+        dirLight.shadow.camera.far = 3000;
+        dirLight.shadow.camera.left = -750;
+        dirLight.shadow.camera.right = 750;
+        dirLight.shadow.camera.top = 850;
+        dirLight.shadow.camera.bottom = -850;
+        scene.add(dirLight);
+        scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x334155, 0.25));
+
+        // 60x60cm 데코타일 텍스처
+        function createTileTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#dcdad5';
+            ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 850; i++) {
+                ctx.fillStyle = i % 2 === 0 ? 'rgba(85,85,90,0.13)' : 'rgba(255,255,255,0.22)';
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+            }
+            ctx.strokeStyle = '#8c8d90';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(0, 0, 256, 256);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(ROOM_W / 60, ROOM_D / 60);
+            return tex;
+        }
+
+        const mats = {
+            floor: new THREE.MeshStandardMaterial({ map: createTileTexture(), roughness: 0.75, metalness: 0.05 }),
+            wall: new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.85, transparent: true, opacity: 0.95 }),
+            partitionBlue: new THREE.MeshStandardMaterial({ color: 0x4f75a8, roughness: 0.6 }),
+            partitionLeader: new THREE.MeshStandardMaterial({ color: 0x264b82, roughness: 0.5 }),
+            partitionComm: new THREE.MeshStandardMaterial({ color: 0x0f766e, roughness: 0.55 }),
+            partitionFrame: new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.35, metalness: 0.6 }),
+            partitionGreen: new THREE.MeshStandardMaterial({ color: 0x739457, roughness: 0.75 }),
+            deskWood: new THREE.MeshStandardMaterial({ color: 0xd9b991, roughness: 0.55 }),
+            commDarkWood: new THREE.MeshStandardMaterial({ color: 0x4a2518, roughness: 0.45 }),
+            commGreenPad: new THREE.MeshStandardMaterial({ color: 0x1b6b3a, roughness: 0.6 }),
+            darkMetal: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.5 }),
+            monitorScreen: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2, emissive: 0x1e3a8a, emissiveIntensity: 0.28 }),
+            chairFabric: new THREE.MeshStandardMaterial({ color: 0x1e242b, roughness: 0.8 }),
+            meetChairSeat: new THREE.MeshStandardMaterial({ color: 0x9ca94c, roughness: 0.7 }),
+            orangeGear: new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.55 }),
+            cabinetGrey: new THREE.MeshStandardMaterial({ color: 0xd1d5db, roughness: 0.5, metalness: 0.2 }),
+            goldPlate: new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3, metalness: 0.7 })
+        };
+
+        // 바닥 및 외벽
+        const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), mats.floor);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+
+        const wallGroup = new THREE.Group();
+        scene.add(wallGroup);
+        function addWall(w, h, d, x, y, z) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.wall);
+            m.position.set(x, y, z);
+            m.receiveShadow = true;
+            wallGroup.add(m);
+        }
+        const W_THICK = 16;
+        addWall(ROOM_W + W_THICK*2, WALL_H, W_THICK, 0, WALL_H/2, -ROOM_D/2 - W_THICK/2);
+        addWall(ROOM_W + W_THICK*2, WALL_H, W_THICK, 0, WALL_H/2, ROOM_D/2 + W_THICK/2);
+        addWall(W_THICK, WALL_H, ROOM_D, -ROOM_W/2 - W_THICK/2, WALL_H/2, 0);
+        addWall(W_THICK, WALL_H, ROOM_D, ROOM_W/2 + W_THICK/2, WALL_H/2, 0);
+
+        function createChair(isLeader = false) {
+            const g = new THREE.Group();
+            const seatMat = isLeader ? new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4 }) : mats.chairFabric;
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(46, 7, 44), seatMat);
+            seat.position.y = 44; seat.castShadow = true; g.add(seat);
+            const backH = isLeader ? 58 : 46;
+            const back = new THREE.Mesh(new THREE.BoxGeometry(44, backH, 7), seatMat);
+            back.position.set(0, 44 + backH/2, 19); back.castShadow = true; g.add(back);
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 40, 8), mats.darkMetal);
+            pole.position.y = 22; g.add(pole);
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(24, 24, 4, 6), mats.darkMetal);
+            base.position.y = 3; g.add(base);
+            return g;
+        }
+
+        // =========================================================================
+        // 2. 고정 구조물: 북측 통신시설(255x130) + 통신 고정 1석(270x90) + 남측 계단(235x165)
+        // =========================================================================
+        const commCenterX = -ROOM_W/2 + 355 + COMM_FIXED_W/2; // -42.5cm
+        const commFixedZ  = -ROOM_D/2 + 80 + COMM_FIXED_D/2;  // -497.5cm
+
+        // 북벽 5연동 종합상황판 TV & 슬로건 배너
+        const bannerMesh = new THREE.Mesh(new THREE.BoxGeometry(330, 30, 4), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        bannerMesh.position.set(commCenterX, 245, -ROOM_D/2 + 3);
+        scene.add(bannerMesh);
+        for (let i = -2; i <= 2; i++) {
+            const tv = new THREE.Mesh(new THREE.BoxGeometry(62, 38, 6), mats.monitorScreen);
+            tv.position.set(commCenterX + i * 66, 198, -ROOM_D/2 + 5);
+            scene.add(tv);
+        }
+
+        const commFixedGroup = new THREE.Group();
+        commFixedGroup.position.set(commCenterX, 0, commFixedZ);
+        scene.add(commFixedGroup);
+
+        const commBase = new THREE.Mesh(new THREE.BoxGeometry(COMM_FIXED_W, 76, 110), mats.commDarkWood);
+        commBase.position.set(0, 38, 10); commBase.castShadow = true; commFixedGroup.add(commBase);
+        const commPad = new THREE.Mesh(new THREE.BoxGeometry(235, 2, 85), mats.commGreenPad);
+        commPad.position.set(0, 77.5, 15); commFixedGroup.add(commPad);
+        const commRiser = new THREE.Mesh(new THREE.BoxGeometry(COMM_FIXED_W, 26, 36), mats.commDarkWood);
+        commRiser.position.set(0, 89, -27); commFixedGroup.add(commRiser);
+        [-80, -25, 30, 85].forEach((mx, idx) => {
+            const mon = new THREE.Mesh(new THREE.BoxGeometry(46, 30, 4), mats.monitorScreen);
+            mon.position.set(mx, 95, -5);
+            if (idx === 0) mon.rotation.y = 0.2;
+            if (idx === 3) mon.rotation.y = -0.2;
+            commFixedGroup.add(mon);
+        });
+
+        // [좌석 #1: 통신 고정 자리 (270 x 90cm, 1석)] - 고정된 통신시설 바로 앞 고정 배치
+        const commSeatZ = -345;
+        const commSeatGroup = new THREE.Group();
+        commSeatGroup.position.set(commCenterX, 0, commSeatZ);
+        scene.add(commSeatGroup);
+
+        const csDesk = new THREE.Mesh(new THREE.BoxGeometry(COMM_SEAT_W, 4.5, COMM_SEAT_D - 6), mats.deskWood);
+        csDesk.position.set(0, 73, 0); csDesk.castShadow = true; commSeatGroup.add(csDesk);
+
+        const csFrontPart = new THREE.Mesh(new THREE.BoxGeometry(COMM_SEAT_W, 118, 5), mats.partitionComm);
+        csFrontPart.position.set(0, 59, COMM_SEAT_D/2 - 2.5); csFrontPart.castShadow = true; commSeatGroup.add(csFrontPart);
+        [-COMM_SEAT_W/2 + 2.5, COMM_SEAT_W/2 - 2.5].forEach(sx => {
+            const sideP = new THREE.Mesh(new THREE.BoxGeometry(5, 118, COMM_SEAT_D), mats.partitionComm);
+            sideP.position.set(sx, 59, 0); commSeatGroup.add(sideP);
+        });
+        // 듀얼 모니터 & 전화기 & 의자 1석 (중앙 집중 관제)
+        [-26, 26].forEach((mx, idx) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(48, 30, 3), mats.monitorScreen);
+            m.position.set(mx, 94, 18);
+            m.rotation.y = Math.PI + (idx === 0 ? -0.15 : 0.15);
+            commSeatGroup.add(m);
+        });
+        const csChair = createChair(false);
+        csChair.position.set(0, 0, -25);
+        csChair.rotation.y = 0;
+        commSeatGroup.add(csChair);
+
+        // 남측 계단 및 주 출입구 (235cm x 165cm)
+        const stairW = 235, stairD = 165;
+        const stairZ = ROOM_D/2 - stairD/2; // +560cm
+        const stairGroup = new THREE.Group();
+        stairGroup.position.set(0, 0, stairZ);
+        scene.add(stairGroup);
+        const stairWell = new THREE.Mesh(new THREE.BoxGeometry(stairW, 6, stairD), new THREE.MeshStandardMaterial({ color: 0xb8865b }));
+        stairWell.position.set(0, 2, 0); stairGroup.add(stairWell);
+        for (let s = 0; s < 5; s++) {
+            const step = new THREE.Mesh(new THREE.BoxGeometry(stairW - 24, 4, 26), new THREE.MeshStandardMaterial({ color: 0x9c6b43 }));
+            step.position.set(0, 5 - s * 0.8, -stairD/2 + 25 + s * 28);
+            stairGroup.add(step);
+        }
+        [-stairW/2 + 5, stairW/2 - 5].forEach(rx => {
+            const curb = new THREE.Mesh(new THREE.BoxGeometry(10, 18, stairD), mats.partitionFrame);
+            curb.position.set(rx, 9, 0); stairGroup.add(curb);
+        });
+
+        // 양측 벽면 방화복 옷장 & 캐비닛
+        function createTurnoutGearRack(x, z, rotY) {
+            const rg = new THREE.Group();
+            rg.position.set(x, 0, z); rg.rotation.y = rotY;
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(145, 195, 50), mats.cabinetGrey);
+            frame.position.y = 97.5; frame.castShadow = true; rg.add(frame);
+            const inside = new THREE.Mesh(new THREE.BoxGeometry(135, 150, 10), mats.darkMetal);
+            inside.position.set(0, 95, 21); rg.add(inside);
+            [-45, -15, 15, 45].forEach(gx => {
+                const coat = new THREE.Mesh(new THREE.BoxGeometry(23, 92, 18), mats.orangeGear);
+                coat.position.set(gx, 92, 22); rg.add(coat);
+                const stripe = new THREE.Mesh(new THREE.BoxGeometry(24, 6, 19), mats.wall);
+                stripe.position.set(gx, 72, 22); rg.add(stripe);
+                const helmet = new THREE.Mesh(new THREE.SphereGeometry(9.5, 12, 10), mats.wall);
+                helmet.position.set(gx, 162, 22); rg.add(helmet);
+            });
+            return rg;
+        }
+        scene.add(createTurnoutGearRack(-ROOM_W/2 + 26, -230, Math.PI / 2));
+        scene.add(createTurnoutGearRack(-ROOM_W/2 + 26, -20, Math.PI / 2));
+        scene.add(createTurnoutGearRack(ROOM_W/2 - 26, -230, -Math.PI / 2));
+        scene.add(createTurnoutGearRack(ROOM_W/2 - 26, -20, -Math.PI / 2));
+
+        // =========================================================================
+        // 3. 가구 모듈: 팀장 독립석 3자리(190x125) + 직원 개별 마주보기석 4자리(140x120)
+        // =========================================================================
+        function createLeaderUnit190x125() {
+            const g = new THREE.Group();
+            const W = LEADER_W, D = LEADER_D, PH = 128, PT = 5;
+
+            const carpet = new THREE.Mesh(
+                new THREE.BoxGeometry(W + 14, 1.5, D + 14),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })
+            );
+            carpet.position.set(0, 0.8, 0); g.add(carpet);
+
+            const frontP = new THREE.Mesh(new THREE.BoxGeometry(W, PH, PT), mats.partitionLeader);
+            frontP.position.set(0, PH/2, D/2 - PT/2); frontP.castShadow = true; g.add(frontP);
+            const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(W + 2, 3, PT + 1), mats.partitionFrame);
+            frontTrim.position.set(0, PH + 1.5, D/2 - PT/2); g.add(frontTrim);
+
+            [-W/2 + PT/2, W/2 - PT/2].forEach(sx => {
+                const sp = new THREE.Mesh(new THREE.BoxGeometry(PT, PH, D), mats.partitionLeader);
+                sp.position.set(sx, PH/2, 0); sp.castShadow = true; g.add(sp);
+                const st = new THREE.Mesh(new THREE.BoxGeometry(PT + 1, 3, D), mats.partitionFrame);
+                st.position.set(sx, PH + 1.5, 0); g.add(st);
+            });
+
+            const mainTop = new THREE.Mesh(new THREE.BoxGeometry(W - 10, 4.5, 72), mats.deskWood);
+            mainTop.position.set(0, 73, D/2 - 39); mainTop.castShadow = true; g.add(mainTop);
+            const sideTop = new THREE.Mesh(new THREE.BoxGeometry(52, 4.5, D - 45), mats.deskWood);
+            sideTop.position.set(-W/2 + 31, 73, -15); sideTop.castShadow = true; g.add(sideTop);
+            const drawer = new THREE.Mesh(new THREE.BoxGeometry(42, 68, 55), mats.deskWood);
+            drawer.position.set(W/2 - 28, 34, D/2 - 36); g.add(drawer);
+
+            const mon1 = new THREE.Mesh(new THREE.BoxGeometry(48, 30, 3), mats.monitorScreen);
+            mon1.position.set(-22, 95, D/2 - 24); mon1.rotation.y = Math.PI - 0.15; g.add(mon1);
+            const mon2 = new THREE.Mesh(new THREE.BoxGeometry(48, 30, 3), mats.monitorScreen);
+            mon2.position.set(28, 95, D/2 - 24); mon2.rotation.y = Math.PI + 0.15; g.add(mon2);
+            const phone = new THREE.Mesh(new THREE.BoxGeometry(18, 7, 20), mats.darkMetal);
+            phone.position.set(-W/2 + 28, 77, D/2 - 48); g.add(phone);
+            const nameplate = new THREE.Mesh(new THREE.BoxGeometry(42, 11, 4), mats.goldPlate);
+            nameplate.position.set(0, PH + 6, D/2 - PT/2); g.add(nameplate);
+
+            const chair = createChair(true);
+            chair.position.set(6, 0, -18);
+            chair.rotation.y = Math.PI;
+            g.add(chair);
+            return g;
+        }
+        // [직원 140x120 마주보기 최적화 1인 모듈]
+        // 90도 회전하여 '마주보기' 구조일 때, 한쪽은 서향(Z-를 전면 파티션으로 봄), 한쪽은 동향(Z+를 전면 파티션으로 봄).
+        // 남쪽 주출입구(계단)에서 볼 때, '동-서' 마주보기는 '측면 파티션 (H 128cm, 두께 120cm)'이 완벽히 시야를 가려
+        // 주출입구로 들어오는 상사/외부인에게 모니터 불빛과 화면이 절대로 보이지 않습니다! (프라이버시 극대화)
+        function createStaffSingleUnit140x120() {
+            const g = new THREE.Group();
+            const W = STAFF_W; // 140
+            const D = STAFF_D; // 120
+            const PH = 128;
+            const PT = 5;
+
+            // 전면 파티션 (책상의 넓은 면 뒷벽, 즉 모니터 뒷벽이 됩니다)
+            const frontP = new THREE.Mesh(new THREE.BoxGeometry(W, PH, PT), mats.partitionBlue);
+            frontP.position.set(0, PH/2, -D/2 + PT/2); frontP.castShadow = true; g.add(frontP);
+            const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(W + 2, 3, PT + 1), mats.partitionFrame);
+            frontTrim.position.set(0, PH + 1.5, -D/2 + PT/2); g.add(frontTrim);
+
+            // 좌/우 측면 파티션
+            [-W/2 + PT/2, W/2 - PT/2].forEach(sx => {
+                const sp = new THREE.Mesh(new THREE.BoxGeometry(PT, PH, D), mats.partitionBlue);
+                sp.position.set(sx, PH/2, 0); sp.castShadow = true; g.add(sp);
+                const st = new THREE.Mesh(new THREE.BoxGeometry(PT + 1, 3, D), mats.partitionFrame);
+                st.position.set(sx, PH + 1.5, 0); g.add(st);
+            });
+
+            // 후면 프라이버시 날개 파티션 (이동 통로 측 가림막)
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(45, PH, PT), mats.partitionBlue);
+            wing.position.set(-W/2 + 22.5, PH/2, D/2 - PT/2); g.add(wing);
+
+            // ㄱ자 코너 데스크
+            const mainTop = new THREE.Mesh(new THREE.BoxGeometry(W - 10, 4, 65), mats.deskWood);
+            mainTop.position.set(0, 73, -D/2 + 35); mainTop.castShadow = true; g.add(mainTop);
+            const sideTop = new THREE.Mesh(new THREE.BoxGeometry(45, 4, D - 42), mats.deskWood);
+            sideTop.position.set(-W/2 + 27, 73, 12); sideTop.castShadow = true; g.add(sideTop);
+            const drawer = new THREE.Mesh(new THREE.BoxGeometry(38, 68, 50), mats.deskWood);
+            drawer.position.set(W/2 - 26, 34, -D/2 + 32); g.add(drawer);
+
+            // 듀얼 모니터 & 전화기
+            const mon1 = new THREE.Mesh(new THREE.BoxGeometry(44, 28, 3), mats.monitorScreen);
+            mon1.position.set(-20, 94, -D/2 + 22); mon1.rotation.y = 0.16; g.add(mon1);
+            const mon2 = new THREE.Mesh(new THREE.BoxGeometry(44, 28, 3), mats.monitorScreen);
+            mon2.position.set(24, 94, -D/2 + 22); mon2.rotation.y = -0.16; g.add(mon2);
+            const phone = new THREE.Mesh(new THREE.BoxGeometry(17, 7, 19), mats.darkMetal);
+            phone.position.set(-W/2 + 26, 77, -D/2 + 46); g.add(phone);
+
+            // 의자
+            const chair = createChair(false);
+            chair.position.set(8, 0, 16);
+            chair.rotation.y = 0;
+            g.add(chair);
+
+            return g;
+        }
+
+        // =========================================================================
+        // 4. 소회의실 & 탕비실
+        // =========================================================================
+        function createGreenMobilePartition(w, x, z, rotY = 0) {
+            const pg = new THREE.Group();
+            pg.position.set(x, 0, z); pg.rotation.y = rotY;
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 147, 5), mats.partitionGreen);
+            panel.position.y = 81.5; panel.castShadow = true; pg.add(panel);
+            [-w/2 + 12, w/2 - 12].forEach(lx => {
+                const foot = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 28), mats.partitionFrame);
+                foot.position.set(lx, 4, 0); pg.add(foot);
+            });
+            return pg;
+        }
+
+        const meetGroup = new THREE.Group();
+        scene.add(meetGroup);
+        meetGroup.add(createGreenMobilePartition(145, -65, -135, 0));
+        meetGroup.add(createGreenMobilePartition(145, 82, -135, 0));
+        meetGroup.add(createGreenMobilePartition(155, -155, -42, Math.PI / 2));
+        const meetTable = new THREE.Mesh(new THREE.BoxGeometry(185, 5, 95), mats.deskWood);
+        meetTable.position.set(5, 73, 15); meetTable.castShadow = true; meetGroup.add(meetTable);
+        [-58, 5, 68].forEach(cx => {
+            const chN = createChair(false); chN.children[0].material = mats.meetChairSeat;
+            chN.position.set(cx, 0, -44); chN.rotation.y = Math.PI; meetGroup.add(chN);
+            const chS = createChair(false); chS.children[0].material = mats.meetChairSeat;
+            chS.position.set(cx, 0, 74); meetGroup.add(chS);
+        });
+        const tvStand = new THREE.Group();
+        tvStand.position.set(135, 0, 15); tvStand.rotation.y = -Math.PI / 2;
+        tvStand.add(new THREE.Mesh(new THREE.BoxGeometry(65, 5, 45), mats.darkMetal));
+        const tvPanel = new THREE.Mesh(new THREE.BoxGeometry(115, 68, 5), mats.monitorScreen);
+        tvPanel.position.set(0, 130, 4); tvStand.add(tvPanel);
+        meetGroup.add(tvStand);
+
+        const pantryGroup = new THREE.Group();
+        scene.add(pantryGroup);
+        pantryGroup.add(createGreenMobilePartition(180, -45, -130, 0));
+        pantryGroup.add(createGreenMobilePartition(150, 115, -42, Math.PI / 2));
+        const fridge = new THREE.Mesh(new THREE.BoxGeometry(84, 178, 74), mats.cabinetGrey);
+        fridge.position.set(-115, 89, -60); fridge.castShadow = true; pantryGroup.add(fridge);
+        const purifier = new THREE.Mesh(new THREE.BoxGeometry(36, 115, 42), mats.wall);
+        purifier.position.set(-135, 57.5, 18); pantryGroup.add(purifier);
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(130, 82, 55), mats.deskWood);
+        counter.position.set(-75, 41, 120); pantryGroup.add(counter);
+        const snackTable = new THREE.Mesh(new THREE.CylinderGeometry(48, 48, 4, 24), mats.wall);
+        snackTable.position.set(15, 72, 18); pantryGroup.add(snackTable);
+        [[15, -40, Math.PI], [-38, 38, Math.PI/3], [68, 38, -Math.PI/3]].forEach(([sx, sz, srot]) => {
+            const sc = createChair(false); sc.position.set(sx, 0, sz); sc.rotation.y = srot; pantryGroup.add(sc);
+        });
+
+        // =========================================================================
+        // 5. 총 8석 가구 생성 및 90도 마주보기(동↔서) 좌표 배치 정의
+        // =========================================================================
+        const leaderDesks = [createLeaderUnit190x125(), createLeaderUnit190x125(), createLeaderUnit190x125()];
+        const staffDesks  = [
+            createStaffSingleUnit140x120(),
+            createStaffSingleUnit140x120(),
+            createStaffSingleUnit140x120(),
+            createStaffSingleUnit140x120()
+        ];
+        leaderDesks.forEach(d => scene.add(d));
+        staffDesks.forEach(s => scene.add(s));
+
+        const aisleGroupP1 = new THREE.Group();
+        const aisleGroupP2 = new THREE.Group();
+        scene.add(aisleGroupP1);
+        scene.add(aisleGroupP2);
+
+        function createAislePlane(group, w, d, x, z, colorHex = 0x06b6d4) {
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+            m.rotation.x = -Math.PI / 2; m.position.set(x, 1.5, z);
+            group.add(m);
+            const edges = new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d));
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x38bdf8 }));
+            line.rotation.x = -Math.PI / 2; line.position.set(x, 2, z);
+            group.add(line);
+        }
+
+        // 제1안 (좌우 복도 여유 확보)
+        createAislePlane(aisleGroupP1, 210, 340, -275, 75, 0x06b6d4);
+        createAislePlane(aisleGroupP1, 210, 340,  275, 75, 0x06b6d4);
+        createAislePlane(aisleGroupP1, 820, 85, 0, -85, 0x06b6d4);
+        createAislePlane(aisleGroupP1, 640, 110, 0, 260, 0x06b6d4);
+
+        // 제2안 (정중앙 260cm 남북 직선 출동 고속대로)
+        createAislePlane(aisleGroupP2, 240, 740, 0, 10, 0x10b981);
+        createAislePlane(aisleGroupP2, 640, 110, 0, -295, 0x10b981);
+
+        // 제1안 & 제2안 동↔서 마주보기 (90도/270도 회전) 평면 좌표계
+        const layouts = {
+            1: {
+                // [제1안: 중앙 마주보기 · 지휘 강화형]
+                // 팀장 3석(Z = -190)은 북벽을 마주봄
+                // 직원 4인(Z = 75, X = -60 / +60)은 2명(X=-60)은 동쪽을 바라봄(rotY = -PI/2), 2명(X=+60)은 서쪽을 바라봄(rotY = PI/2)
+                leaders: [
+                    { pos: new THREE.Vector3(-340, 0, -190), rotY: 0 },
+                    { pos: new THREE.Vector3(0,    0, -190), rotY: 0 },
+                    { pos: new THREE.Vector3(340,  0, -190), rotY: 0 }
+                ],
+                staff: [
+                    // 좌측 라인 2석 (동쪽을 마주보도록 90도 회전, 파티션이 통로/출입구를 막음)
+                    { pos: new THREE.Vector3(-60, 0,  15), rotY: -Math.PI / 2 },
+                    { pos: new THREE.Vector3(-60, 0, 135), rotY: -Math.PI / 2 },
+                    // 우측 라인 2석 (서쪽을 마주보도록 90도 회전, 파티션이 통로/소회의실을 막음)
+                    { pos: new THREE.Vector3( 60, 0,  15), rotY: Math.PI / 2 },
+                    { pos: new THREE.Vector3( 60, 0, 135), rotY: Math.PI / 2 }
+                ],
+                meetPos: new THREE.Vector3(345, 0, 440),
+                pantryPos: new THREE.Vector3(-355, 0, 440)
+            },
+            2: {
+                // [제2안: 중앙 출동로 · 좌우 분산 마주보기형]
+                // 좌측단 X=-285에 2인 마주보기(서로 동-서), 우측단 X=+285에 2인 마주보기(서로 동-서)
+                leaders: [
+                    { pos: new THREE.Vector3(-275, 0, -210), rotY: 0 },
+                    { pos: new THREE.Vector3(-275, 0,  -30), rotY: 0 },
+                    { pos: new THREE.Vector3( 275, 0, -210), rotY: 0 }
+                ],
+                staff: [
+                    // 좌측단 직원 2석 (X=-275 부근에서 90도 동서 마주보기)
+                    { pos: new THREE.Vector3(-335, 0, 175), rotY: -Math.PI / 2 }, // 동향
+                    { pos: new THREE.Vector3(-215, 0, 175), rotY: Math.PI / 2 },  // 서향
+                    // 우측단 직원 2석 (X=+275 부근에서 90도 동서 마주보기)
+                    { pos: new THREE.Vector3( 215, 0,  55), rotY: -Math.PI / 2 }, // 동향
+                    { pos: new THREE.Vector3( 335, 0,  55), rotY: Math.PI / 2 }   // 서향
+                ],
+                meetPos: new THREE.Vector3(345, 0, 440),
+                pantryPos: new THREE.Vector3(-355, 0, 440)
+            }
+        };
+
+        // =========================================================================
+        // 6. 3D HTML 라벨 정의
+        // =========================================================================
+        const labelList = [];
+        function createLabel(text, subText, posVec, cssClass = '') {
+            const div = document.createElement('div');
+            div.className = 'zone-label ' + cssClass;
+            div.innerHTML = `${text}<span class="sub">${subText}</span>`;
+            labelsContainer.appendChild(div);
+            const item = { el: div, pos: posVec.clone() };
+            labelList.push(item);
+            return item;
+        }
+
+        createLabel('🖥️ 북측 고정 통신시설', '실측 255×130cm (북벽 80cm 이격)', new THREE.Vector3(commCenterX, 172, commFixedZ), 'comm-fixed');
+        createLabel('🎧 [좌석1] 통신 고정 자리', '실측 270×90cm (통신시설 바로 앞 고정)', new THREE.Vector3(commCenterX, 145, commSeatZ), 'comm-seat');
+        createLabel('🚪 남측 계단 및 주 출입구', '실측 235×165cm (모니터 가림 가벽화)', new THREE.Vector3(0, 90, stairZ), '');
+
+        const dynamicLabels = {
+            leaders: [
+                createLabel('⭐ [좌석2] 1팀장 독립석', '실측 190×125cm (단독 큐비클)', new THREE.Vector3(), 'leader'),
+                createLabel('⭐ [좌석3] 2팀장 독립석', '실측 190×125cm (단독 큐비클)', new THREE.Vector3(), 'leader'),
+                createLabel('⭐ [좌석4] 3팀장 독립석', '실측 190×125cm (단독 큐비클)', new THREE.Vector3(), 'leader')
+            ],
+            staffGroup1: createLabel('🚒 [좌석5·6·7·8] 마주보기 직원 4명 자리', '동↔서 마주보기 4인석 · 출입구 프라이버시 차단', new THREE.Vector3(0, 160, 75), 'member'),
+            staffGroup2L: createLabel('🚒 [좌석5·6] 좌측 마주보기 2석', '동↔서 마주보기 · 집중도 극대화', new THREE.Vector3(-275, 155, 175), 'member'),
+            staffGroup2R: createLabel('🚒 [좌석7·8] 우측 마주보기 2석', '동↔서 마주보기 · 집중도 극대화', new THREE.Vector3(275, 155, 55), 'member'),
+            meet: createLabel('📺 소회의실 (6인용)', '155cm 초록 파티션 · 이동식 TV', new THREE.Vector3(), 'meet'),
+            pantry: createLabel('☕ 탕비실 · 휴게공간', '냉장고·정수기·커피머신·다과탁자', new THREE.Vector3(), 'pantry'),
+            aisleMain: createLabel('🚶 좌·우 초대형 광폭 통로', '양옆 폭 310cm (통행 불편 제로)', new THREE.Vector3(-275, 40, 75), 'aisle')
+        };
+
+        let currentPlan = 1;
+        let layoutAnim = null;
+        let aislesVisible = true;
+
+        function updateStaffLabelsVisibility(planNo) {
+            if (planNo === 1) {
+                dynamicLabels.staffGroup1.pos.set(0, 160, 75);
+                dynamicLabels.staffGroup2L.pos.set(0, -5000, 0);
+                dynamicLabels.staffGroup2R.pos.set(0, -5000, 0);
+                dynamicLabels.aisleMain.pos.set(-275, 45, 75);
+                dynamicLabels.aisleMain.el.innerHTML = `🚶 좌·우 초대형 광폭 복도<span class="sub">양옆 폭 310cm 확보 (모니터 완벽 비노출)</span>`;
+            } else {
+                dynamicLabels.staffGroup1.pos.set(0, -5000, 0);
+                dynamicLabels.staffGroup2L.pos.set(-275, 155, 175);
+                dynamicLabels.staffGroup2R.pos.set(275, 155, 55);
+                dynamicLabels.aisleMain.pos.set(0, 45, 30);
+                dynamicLabels.aisleMain.el.innerHTML = `🚶 정중앙 직선 출동 대로<span class="sub">폭 260cm (남북 기동성 극대화)</span>`;
+            }
+        }
+
+        function applyLayoutImmediate(planNo) {
+            const ly = layouts[planNo];
+            for (let i = 0; i < 3; i++) {
+                leaderDesks[i].position.copy(ly.leaders[i].pos);
+                leaderDesks[i].rotation.y = ly.leaders[i].rotY;
+                dynamicLabels.leaders[i].pos.set(ly.leaders[i].pos.x, 162, ly.leaders[i].pos.z);
+            }
+            for (let j = 0; j < 4; j++) {
+                staffDesks[j].position.copy(ly.staff[j].pos);
+                staffDesks[j].rotation.y = ly.staff[j].rotY;
+            }
+            meetGroup.position.copy(ly.meetPos);
+            pantryGroup.position.copy(ly.pantryPos);
+            dynamicLabels.meet.pos.set(ly.meetPos.x, 180, ly.meetPos.z);
+            dynamicLabels.pantry.pos.set(ly.pantryPos.x, 180, ly.pantryPos.z);
+
+            updateStaffLabelsVisibility(planNo);
+            aisleGroupP1.visible = aislesVisible && (planNo === 1);
+            aisleGroupP2.visible = aislesVisible && (planNo === 2);
+        }
+        applyLayoutImmediate(1);
+
+        function switchPlan(planNo) {
+            currentPlan = planNo;
+            const btn1 = document.getElementById('btn-plan1');
+            const btn2 = document.getElementById('btn-plan2');
+            const card = document.getElementById('plan-summary-card');
+            const title = document.getElementById('summary-title');
+            const list = document.getElementById('summary-list');
+
+            if (planNo === 1) {
+                btn1.className = 'plan-btn active-p1';
+                btn2.className = 'plan-btn';
+                card.style.borderLeftColor = '#38bdf8';
+                title.style.color = '#38bdf8';
+                title.innerText = '🔵 [제1안] 중앙 마주보기 · 지휘 강화형 (총 8석)';
+                list.innerHTML = `
+                    <li><b>통신 고정 1자리(270×90cm)</b>: 북측 고정 통신시설 바로 앞에 상시 고정</li>
+                    <li><b>팀장 독립 3자리(190×125cm × 3석)</b>: 상단에 나란히 독립 배치 (전방 지휘)</li>
+                    <li><b>직원 4자리(140×120cm × 4석)</b>: 중앙 마주보기(동↔서) 구조로 프라이버시 완벽</li>
+                    <li><b>초대형 광폭 통로</b>: 중앙 클러스터 좌·우 양옆으로 <b>각 310cm 광폭 복도</b> 확보</li>
+                `;
+            } else {
+                btn1.className = 'plan-btn';
+                btn2.className = 'plan-btn active-p2';
+                card.style.borderLeftColor = '#34d399';
+                title.style.color = '#34d399';
+                title.innerText = '🟢 [제2안] 중앙 출동로 · 좌우 분산 마주보기형 (총 8석)';
+                list.innerHTML = `
+                    <li><b>정중앙 직선 출동로(폭 260cm)</b>: 계단 출입구~통신석까지 장애물 제로</li>
+                    <li><b>팀장 독립 3자리(190×125cm)</b>: 중앙 통로 좌·우(좌2, 우1)로 여유롭게 독립 배치</li>
+                    <li><b>직원 4자리(140×120cm × 4석)</b>: 좌우 분산 후 2인씩 마주보게 회전, 프라이버시 극대화</li>
+                    <li><b>통신 고정 1자리(270×90cm)</b>: 중앙 직선 통로 끝단에 직결 배치</li>
+                `;
+            }
+
+            updateStaffLabelsVisibility(planNo);
+            aisleGroupP1.visible = aislesVisible && (planNo === 1);
+            aisleGroupP2.visible = aislesVisible && (planNo === 2);
+
+            const targetLy = layouts[planNo];
+            layoutAnim = {
+                progress: 0,
+                startLeadersPos: leaderDesks.map(d => d.position.clone()),
+                endLeadersPos: targetLy.leaders.map(l => l.pos),
+                startStaffPos: staffDesks.map(s => s.position.clone()),
+                endStaffPos: targetLy.staff.map(s => s.pos),
+                endStaffRot: targetLy.staff.map(s => s.rotY)
+            };
+        }
+
+        // =========================================================================
+        // 7. 카메라 시점, 옵션 및 보고서 모달 컨트롤
+        // =========================================================================
+        let camAnim = null;
+        function setCameraView(mode, btnEl) {
+            document.querySelectorAll('#ui-panel .panel-section:first-child .ui-btn').forEach(b => b.classList.remove('active'));
+            if (btnEl) btnEl.classList.add('active');
+
+            let targetPos, targetLook;
+            switch (mode) {
+                case 'iso':
+                    targetPos = new THREE.Vector3(0, 1300, 1360);
+                    targetLook = new THREE.Vector3(0, 40, 20);
+                    break;
+                case 'top':
+                    targetPos = new THREE.Vector3(0, 1800, 15);
+                    targetLook = new THREE.Vector3(0, 0, 0);
+                    break;
+                case 'entrance_eye':
+                    // 남측 출입구에서 들어올 때의 1인칭 눈높이 시점 (직원 모니터 뒷면 및 측면 파티션 벽만 보여 프라이버시 확인용)
+                    targetPos = new THREE.Vector3(0, 158, 620);
+                    targetLook = new THREE.Vector3(0, 130, -300);
+                    break;
+                case 'comm_leader':
+                    targetPos = new THREE.Vector3(0, 620, 220);
+                    targetLook = new THREE.Vector3(-20, 75, -280);
+                    break;
+                case 'south_rooms':
+                    targetPos = new THREE.Vector3(0, 650, 920);
+                    targetLook = new THREE.Vector3(0, 60, 380);
+                    break;
+            }
+            camAnim = {
+                startPos: camera.position.clone(), endPos: targetPos,
+                startLook: controls.target.clone(), endLook: targetLook,
+                progress: 0
+            };
+        }
+
+        let labelsVisible = true;
+        function toggleLabels() {
+            labelsVisible = !labelsVisible;
+            labelsContainer.style.display = labelsVisible ? 'block' : 'none';
+            document.getElementById('btn-labels').classList.toggle('active', labelsVisible);
+        }
+
+        function toggleAisles() {
+            aislesVisible = !aislesVisible;
+            aisleGroupP1.visible = aislesVisible && (currentPlan === 1);
+            aisleGroupP2.visible = aislesVisible && (currentPlan === 2);
+            document.getElementById('btn-aisle').classList.toggle('active', aislesVisible);
+        }
+
+        let wallState = 0;
+        function toggleWalls() {
+            wallState = (wallState + 1) % 3;
+            const btn = document.getElementById('btn-walls');
+            if (wallState === 0) {
+                wallGroup.visible = true; mats.wall.opacity = 0.95;
+                btn.classList.remove('active'); btn.innerText = '🧱 외벽 반투명 / 숨김';
+            } else if (wallState === 1) {
+                wallGroup.visible = true; mats.wall.opacity = 0.25;
+                btn.classList.add('active'); btn.innerText = '🧱 외벽: 반투명';
+            } else {
+                wallGroup.visible = false;
+                btn.classList.add('active'); btn.innerText = '🧱 외벽: 숨김';
+            }
+        }
+
+        function toggleMobilePanel() {
+            document.getElementById('ui-panel').classList.toggle('collapsed');
+        }
+
+        function openProposalModal() {
+            document.getElementById('proposal-modal').classList.add('open');
+        }
+        function closeProposalModal() {
+            document.getElementById('proposal-modal').classList.remove('open');
+        }
+
+        function copyVoteTemplate() {
+            const copyText = `[사무실 공간 재배치(총 8석: 제1안 vs 제2안) 검토 보고 및 직원 선호도 조회]
+
+1. 실측 기준 및 좌석 구성 (전체 1,050cm × 1,285cm / 총 8석)
+ - 통신 고정 자리 (1석): 가로 270cm × 세로 90cm (북측 고정 통신시설 바로 앞 상시 고정)
+ - 팀장 독립 자리 (3석): 1석당 가로 190cm × 세로 125cm (1·2·3팀장 단독 독립 큐비클)
+ - 직원 자리 (4석): 1석당 가로 140cm × 세로 120cm (총 4석, 동서 방향 90도 마주보기 배치 적용)
+ - 공용 공간: 우측 하단 소회의실(6인용+TV) / 좌측 하단 탕비실(냉장고·정수기·다과탁자)
+
+2. 프라이버시 보호 및 배치안 핵심 비교
+ • [제1안: 중앙 마주보기 · 지휘 강화형]
+   - 상단 팀장 3석 일렬 배치 및 중앙 직원 4석을 좌우 마주보기(동-서) 방향으로 배치.
+   - 남쪽 출입구에서 진입 시 128cm 측면 파티션이 시야를 가려 모니터 화면이 완벽 은폐됨.
+   - 장점: 팀장 3인의 유기적 소통, 마주보는 집중형 좌석 구조, 좌·우 양옆 310cm 초대형 광폭 통로 확보.
+ • [제2안: 중앙 출동로 · 좌우 분산 마주보기형]
+   - 중앙을 260cm 남북 고속 관통 출동로로 비우고, 좌·우 구역에 2인씩 마주보는 구조로 분산 배치.
+   - 통로와 출입구 측면으로 파티션이 정면 노출되어 보행자 시야로부터 프라이버시 완벽 차단.
+   - 장점: 출입구~통신실 장애물 제로 고속 이동, 마주보는 분할 배치로 팀별 독립성 강화.
+
+----------------------------------------
+[직원 선호도 투표 및 의견 회신 양식]
+• 소속 / 성명 : (     )팀 / 성명 : (         )
+• 선호 배치안 : [   ] 제1안(중앙 마주보기형)  /  [   ] 제2안(중앙 출동로 · 좌우 분산 마주보기형)
+• 선택 사유 및 건의사항 : `;
+
+            navigator.clipboard.writeText(copyText).then(() => {
+                alert('보고서 및 직원 투표 안내문이 클립보드에 복사되었습니다! 카톡이나 문서에 바로 붙여넣기(Ctrl+V) 하세요.');
+            }).catch(() => {
+                alert('화면의 텍스트를 드래그하여 복사해 주세요.');
+            });
+        }
+
+        // =========================================================================
+        // 8. 애니메이션 루프
+        // =========================================================================
+        function updateLabels() {
+            if (!labelsVisible) return;
+            const halfW = window.innerWidth / 2;
+            const halfH = window.innerHeight / 2;
+            labelList.forEach(item => {
+                if (item.pos.y < -1000) {
+                    item.el.style.display = 'none';
+                    return;
+                }
+                const v = item.pos.clone().project(camera);
+                if (v.z > 1) {
+                    item.el.style.display = 'none';
+                } else {
+                    item.el.style.display = 'block';
+                    item.el.style.left = `${(v.x * halfW) + halfW}px`;
+                    item.el.style.top = `${-(v.y * halfH) + halfH}px`;
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (layoutAnim) {
+                layoutAnim.progress += 0.055;
+                const t = layoutAnim.progress >= 1 ? 1 : 1 - Math.pow(1 - layoutAnim.progress, 3);
+                for (let i = 0; i < 3; i++) {
+                    leaderDesks[i].position.lerpVectors(layoutAnim.startLeadersPos[i], layoutAnim.endLeadersPos[i], t);
+                    dynamicLabels.leaders[i].pos.set(leaderDesks[i].position.x, 162, leaderDesks[i].position.z);
+                }
+                for (let j = 0; j < 4; j++) {
+                    staffDesks[j].position.lerpVectors(layoutAnim.startStaffPos[j], layoutAnim.endStaffPos[j], t);
+                    staffDesks[j].rotation.y = layoutAnim.endStaffRot[j];
+                }
+                if (layoutAnim.progress >= 1) layoutAnim = null;
+            }
+
+            if (camAnim) {
+                camAnim.progress += 0.06;
+                const t = camAnim.progress >= 1 ? 1 : 1 - Math.pow(1 - camAnim.progress, 3);
+                camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, t);
+                controls.target.lerpVectors(camAnim.startLook, camAnim.endLook, t);
+                if (camAnim.progress >= 1) camAnim = null;
+            }
+
+            controls.update();
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
